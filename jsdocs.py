@@ -69,6 +69,8 @@ def getParser(view):
         return JsdocsJava(viewSettings)
     elif sourceLang == 'rust':
         return JsdocsRust(viewSettings)
+    elif sourceLang == 'plsql':
+        return JsdocsPlsql(viewSettings)
     return JsdocsJavascript(viewSettings)
 
 
@@ -1099,6 +1101,7 @@ class JsdocsJava(JsdocsParser):
                 break
         return definition
 
+
 class JsdocsRust(JsdocsParser):
     def setupSettings(self):
         self.settings = {
@@ -1118,12 +1121,102 @@ class JsdocsRust(JsdocsParser):
         if not res:
             return None
 
-        name = res.group('name').join('');
+        name = res.group('name').join('')
 
         return (name, [])
 
     def formatFunction(self, name, args):
         return name
+
+
+class JsdocsPlsql(JsdocsParser):
+    def setupSettings(self):
+        identifier = '[a-zA-Z][a-zA-Z_$#0-9]*'
+        self.settings = {
+            # curly brackets around the type information
+            "curlyTypes": False,
+            'typeInfo': False,
+            "typeTag": self.viewSettings.get('jsdocs_override_js_var') or "type",
+            # technically, they can contain all sorts of unicode, but w/e
+            "varIdentifier": identifier,
+            "fnIdentifier":  identifier,
+            "fnOpener": identifier + '(?:\\s+' + identifier + ')?\\s*',
+            "commentCloser": " */",
+            "bool": "Boolean",
+            "function": "Function"
+        }
+
+    def parseFunction(self, line):
+        res = re.search(
+            # Function or proc
+            '(?i)(function|procedure)\s+'
+            # Function name
+            + '(?P<name>' + self.settings['fnIdentifier'] + ')\s*'
+            # Params
+            + '\((?P<args>.*)\)\s*'
+            # Return value
+            + '(return\s+(?P<retval>' + self.settings['fnIdentifier'] + '))?',
+            line
+        )
+        if not res:
+            return None
+
+        # grab the name out of "name1 = function name2(foo)" preferring name1
+        name = res.group('name')
+        args = res.group('args')
+        retval = res.group('retval')
+
+        return (name, args, retval)
+
+    def parseVar(self, line):
+        return None
+
+    def getFunctionReturnType(self, name, retval):
+        return retval
+
+    def getDefinition(self, view, pos):
+        maxLines = 25  # don't go further than this
+
+        definition = ''
+        for i in range(0, maxLines):
+            line = read_line(view, pos)
+
+            if line is None:
+                break
+
+            pos += len(line) + 1
+            # strip /* */ comments
+            #line = re.sub(r"//.*",     "", line)
+            line = re.sub(r"/\*.*\*/", "", line)
+            #strip -- comment
+            line = re.sub(r"--.*", "", line)
+
+            # stop on ; or IS or AS
+            if re.search(";", line):
+                line = re.sub(r";.*", "", line)
+                definition += line
+                break
+            elif re.search("(?i)\b(is|as)\b", line):
+                line = re.sub(r"(?i)\b(is|as)\b.*", "", line)
+                definition += line
+                break
+
+            definition += line
+
+        return definition
+
+    def parseArgs(self, args):
+        """
+        get only argument names
+        """
+        out = []
+        if not args:
+            return out
+
+        for arg in args.split(","):
+            out.append((None, arg.strip().split(" ")[0]))
+
+        return out
 
 ############################################################33
 

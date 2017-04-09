@@ -1,0 +1,9 @@
+{
+  "scope": "source.plsql comment.block",
+  "completions": [
+    { "trigger": "@deprecated",  "contents": "@deprecated ${1:[value]}" },
+    { "trigger": "@param",       "contents": "@param ${1:[paramName]} ${2:[description]}" },
+    { "trigger": "@return",      "contents": "@return ${1:[description]}" },
+    { "trigger": "@throws",      "contents": "@throws ${1:[description]}" }
+  ]
+}
